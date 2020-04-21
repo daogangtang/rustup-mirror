@@ -150,7 +150,8 @@ fn main() {
     }
 
     // Fetch rust components
-    let channels = ["stable", "beta", "nightly"];
+    // let channels = ["stable", "beta", "nightly"];
+    let channels = ["stable", "nightly"];
     for channel in channels.iter() {
         let name = format!("dist/channel-rust-{}.toml", channel);
         let file_path = download(orig_path, &name).unwrap();
