@@ -18,7 +18,7 @@ use filebuffer::FileBuffer;
 use glob::glob;
 use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashSet;
-use std::fs::{copy, create_dir_all, read_dir, File, remove_file};
+use std::fs::{copy, create_dir_all, read_dir, File, remove_file, remove_dir_all};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use toml::Value;
@@ -117,37 +117,6 @@ fn main() {
 
     let mut all_targets = HashSet::new();
 
-    // Garbage collect old nightly versions
-    if let Some(days) = gc_days {
-        let days: i64 = days.parse().expect("days integer");
-        let mirror = Path::new(mirror_path);
-        let dist = mirror.join("dist");
-        let mut day = Local::today().naive_local();
-        day -= Duration::days(days);
-        println!("Nightly before {} will be deleted", day);
-        for path in read_dir(dist).expect("read_dir") {
-            let path = path.unwrap();
-            let file_type = path.file_type().unwrap();
-            if file_type.is_dir() {
-                if let Ok(file_name) = path.file_name().into_string() {
-                    if let Ok(date) = NaiveDate::parse_from_str(&file_name, "%Y-%m-%d") {
-                        if date < day {
-                            println!("Removing Nightly of Date: {}", date);
-                            let pattern = path.path().join("*nightly*");
-                            for entry in
-                                glob(&pattern.to_str().unwrap()).expect("Failed to read glob pattern")
-                            {
-                                if let Ok(path) = entry {
-                                    println!("Removing {}", path.display());
-                                    remove_file(path).expect("remove file");
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
 
     // Fetch rust components
     // let channels = ["stable", "beta", "nightly"];
@@ -276,6 +245,64 @@ fn main() {
         let alt_sha256_new_file_path = Path::new(mirror_path).join(&alt_sha256_new_file_name);
         copy(sha256_new_file_path, alt_sha256_new_file_path).unwrap();
         println!("Producing /{}", alt_sha256_new_file_name);
+
+        // Garbage collect old stable versions
+        // Only keep the latest one stable version
+        if channel == &"stable" {
+            let days: i64 = 30;
+            let mirror = Path::new(mirror_path);
+            let dist = mirror.join("dist");
+            let mut day = Local::today().naive_local();
+            day -= Duration::days(days);
+            println!("Stable before {} will be deleted", day);
+            for path in read_dir(dist).expect("read_dir") {
+                let path = path.unwrap();
+                let file_type = path.file_type().unwrap();
+                if file_type.is_dir() {
+                    if let Ok(file_name) = path.file_name().into_string() {
+                        if let Ok(date) = NaiveDate::parse_from_str(&file_name, "%Y-%m-%d") {
+                            if date < day {
+                                println!("Removing Stable of Date: {}", date);
+                                remove_dir_all(path.path()).expect("remove dir error.");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        else if channel == &"nightly" {
+            // Garbage collect old nightly versions
+            if let Some(days) = gc_days {
+                let days: i64 = days.parse().expect("days integer");
+                let mirror = Path::new(mirror_path);
+                let dist = mirror.join("dist");
+                let mut day = Local::today().naive_local();
+                day -= Duration::days(days);
+                println!("Nightly before {} will be deleted", day);
+                for path in read_dir(dist).expect("read_dir") {
+                    let path = path.unwrap();
+                    let file_type = path.file_type().unwrap();
+                    if file_type.is_dir() {
+                        if let Ok(file_name) = path.file_name().into_string() {
+                            if let Ok(date) = NaiveDate::parse_from_str(&file_name, "%Y-%m-%d") {
+                                if date < day {
+                                    println!("Removing Nightly of Date: {}", date);
+                                    let pattern = path.path().join("*nightly*");
+                                    for entry in
+                                        glob(&pattern.to_str().unwrap()).expect("Failed to read glob pattern")
+                                    {
+                                        if let Ok(path) = entry {
+                                            println!("Removing {}", path.display());
+                                            remove_file(path).expect("remove file");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // Fetch rustup self update
